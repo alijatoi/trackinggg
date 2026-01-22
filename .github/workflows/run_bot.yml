@@ -1,0 +1,36 @@
+name: Appointment Bot
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows you to run it manually from the GitHub website
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Bot
+        env:
+          APPOINTMENT_URL: ${{ secrets.APPOINTMENT_URL }}
+          MY_LAST_NAME: ${{ secrets.MY_LAST_NAME }}
+          MY_FIRST_NAME: ${{ secrets.MY_FIRST_NAME }}
+          MY_BIRTHDATE: ${{ secrets.MY_BIRTHDATE }}
+          MY_PHONE: ${{ secrets.MY_PHONE }}
+          MY_EMAIL: ${{ secrets.MY_EMAIL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python bot.py
