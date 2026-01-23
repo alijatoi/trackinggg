@@ -139,24 +139,56 @@ def book_appointment():
         except: return False
 
         # 5. Success Detection
-        time.sleep(8)
-        success_keywords = [
-            "erfolgreich vereinbart", "Termin-Nummer", "Bestätigung", "Vielen Dank", 
-            "Reference", "Termin-ID", "gebucht", "successfully", "confirmation"
-        ]
-        page_text = driver.execute_script("return document.body.innerText")
-        current_url = driver.current_url.lower()
-        
-        if any(x in current_url for x in ["confirm", "bestaetigung", "appointment-success"]):
-            print("!!! SUCCESS DETECTED BY URL !!!", flush=True)
-            return True
+        print("Submit clicked. Polling for result (20s)...", flush=True)
+        for i in range(20):
+            time.sleep(1)
+            try:
+                current_url = driver.current_url.lower()
+                page_text = driver.execute_script("return document.body.innerText").lower()
+            except:
+                continue
 
-        for keyword in success_keywords:
-            if keyword.lower() in page_text.lower():
-                print(f"!!! SUCCESS DETECTED BY KEYWORD: {keyword} !!!", flush=True)
+            # Explicit Success - URL
+            if any(x in current_url for x in ["confirm", "bestaetigung", "appointment-success", "success", "danke", "finished"]):
+                print(f"!!! SUCCESS DETECTED BY URL: {current_url} !!!", flush=True)
                 return True
-        
-        return False
+
+            # Explicit Success - Keywords
+            success_keywords = [
+                # Generic
+                "erfolgreich", "termin-nummer", "bestätigung", "vielen dank", "thank you",
+                "reference", "termin-id", "gebucht", "successfully", "confirmation",
+                "ihre buchung", "terminbestätigung", "appointment booked",
+                # Specific from User HTML
+                "der termin wurde erfolgreich vereinbart", 
+                "terminreservierung",
+                "bitte notieren sie sich ihren termin"
+            ]
+            if any(k in page_text for k in success_keywords):
+                print("!!! SUCCESS DETECTED BY KEYWORDS (HTML MATCH) !!!", flush=True)
+                return True
+            
+            # Explicit Failure - Slot lost or error
+            error_keywords = [
+                "fehler", "nicht mehr verfügbar", "leider", "error", "bereits vergeben",
+                "slot taken", "time slot is gone", "kann nicht gebucht werden", "already booked"
+            ]
+            if any(k in page_text for k in error_keywords):
+                print(f"!!! DETECTED ERROR/SLOT LOST: {page_text[:100]}... !!!", flush=True)
+                return False
+
+        # Timeout: Form check
+        try:
+             # If the original booking form is still visible, we failed to submit (e.g. validtion error)
+             driver.find_element(By.XPATH, "//form | //input[@type='submit']")
+             print("Form/Submit button still present after matches. Submission likely failed.", flush=True)
+             return False
+        except:
+             # Form is GONE. We are somewhere else.
+             # SAFEGUARD: Assume success to avoid "again n again" spam.
+             print("Form disappeared but no specific success msg found. assuming SUCCESS to be safe.", flush=True)
+             print(f"Final URL: {current_url}", flush=True)
+             return True
     except Exception as e:
         print(f"Attempt failed: {e}", flush=True)
         return False
